@@ -61,7 +61,7 @@ func (m *modelTestSuite) TestInsertBatch() {
 	m.sqlMock.ExpectExec("INSERT INTO `user` (`name`,`age`) VALUES (?,?),(?,?)").
 		WithArgs("John", 18, "Mary", 20).WillReturnResult(sqlmock.NewResult(1, 2))
 
-	err := m.model.InsertBatch(m.ctx, userDOs...)
+	err := m.model.Insert(m.ctx, userDOs...)
 	m.assert.Nil(err)
 	m.assert.Nil(m.sqlMock.ExpectationsWereMet())
 }
@@ -202,7 +202,7 @@ func (m *modelTestSuite) TestListWithOffset() {
 	m.sqlMock.ExpectQuery("SELECT * FROM `user` LIMIT 10 OFFSET 10").
 		WillReturnRows(queryRows)
 
-	actualList, err := m.model.List(m.ctx, OffsetOpt(10, 10))
+	actualList, err := m.model.List(m.ctx, PageOpt(10, 10))
 	expectedUserDOs := []*DBObject{
 		{
 			ID:   5,
@@ -256,14 +256,14 @@ func (m *modelTestSuite) TestListWithWhereSortPage() {
 	m.assert.Equal(expectedUserDOs, actualList)
 }
 
-func (m *modelTestSuite) TestListMap() {
+func (m *modelTestSuite) TestListMapBy() {
 	var userID int64 = 5
 	queryRows := sqlmock.NewRows([]string{"id", "name", "age"}).
 		AddRow(userID, "John", 18)
 	m.sqlMock.ExpectQuery("SELECT * FROM `user` ").
 		WillReturnRows(queryRows)
 
-	actualListMap, err := m.model.ListMap(m.ctx, "")
+	actualListMap, err := m.model.ListMap(m.ctx)
 	expectedUserMap := map[int64]*DBObject{
 		5: {
 			ID:   5,
@@ -319,7 +319,7 @@ func (m *modelTestSuite) TestCount() {
 		WithArgs(userID).
 		WillReturnRows(queryRows)
 
-	exist, err := m.model.Count(m.ctx, "`id` = ?", userID)
+	exist, err := m.model.Count(m.ctx, WhereOpt("`id` = ?", userID))
 	m.assert.Nil(err)
 	m.assert.Nil(m.sqlMock.ExpectationsWereMet())
 	m.assert.Equal(int64(1), exist)

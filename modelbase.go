@@ -18,7 +18,7 @@ func (m *modelBase[K, T]) GetDB() *gorm.DB {
 	return m.db
 }
 
-func (m *modelBase[K, T]) InsertBatch(ctx context.Context, ts ...T) error {
+func (m *modelBase[K, T]) Insert(ctx context.Context, ts ...T) error {
 	if len(ts) == 0 {
 		return nil
 	}
@@ -36,26 +36,58 @@ func (m *modelBase[K, T]) Upsert(ctx context.Context, t T) error {
 }
 
 func (m *modelBase[K, T]) Get(ctx context.Context, id K) (T, error) {
-	var object T
-	return object, errors.WithStack(m.db.WithContext(ctx).First(&object, id).Error)
+	var t T
+	if err := m.db.WithContext(ctx).First(&t, id).Error; err != nil {
+		// If an error occurs, return an empty object
+		var t1 T
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return t1, nil
+		}
+		return t1, errors.WithStack(err)
+	}
+	return t, nil
 }
 
 func (m *modelBase[K, T]) GetWithLock(ctx context.Context, lock Lock, id K) (T, error) {
-	var object T
-	return object, errors.WithStack(m.db.WithContext(ctx).Clauses(
-		clause.Locking{Strength: lock.ToString()}).First(&object, id).Error)
+	var t T
+	if err := m.db.WithContext(ctx).Clauses(
+		clause.Locking{Strength: lock.ToString()}).First(&t, id).Error; err != nil {
+		// If an error occurs, return an empty object
+		var t1 T
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return t1, nil
+		}
+		return t1, errors.WithStack(err)
+	}
+	return t, nil
 }
 
 func (m *modelBase[K, T]) GetBy(ctx context.Context, where string, values ...any) (T, error) {
-	var object T
-	return object, errors.WithStack(m.db.WithContext(ctx).
-		Where(where, values...).First(&object).Error)
+	var t T
+	if err := m.db.WithContext(ctx).
+		Where(where, values...).First(&t).Error; err != nil {
+		// If an error occurs, return an empty object
+		var t1 T
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return t1, nil
+		}
+		return t1, errors.WithStack(err)
+	}
+	return t, nil
 }
 
 func (m *modelBase[K, T]) GetWithLockBy(ctx context.Context, lock Lock, where string, values ...any) (T, error) {
-	var object T
-	return object, errors.WithStack(m.db.WithContext(ctx).Clauses(
-		clause.Locking{Strength: lock.ToString()}).Where(where, values...).First(&object).Error)
+	var t T
+	if err := m.db.WithContext(ctx).Clauses(
+		clause.Locking{Strength: lock.ToString()}).Where(where, values...).First(&t).Error; err != nil {
+		// If an error occurs, return an empty object
+		var t1 T
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return t1, nil
+		}
+		return t1, errors.WithStack(err)
+	}
+	return t, nil
 }
 
 func (m *modelBase[K, T]) Update(ctx context.Context, t T) error {
@@ -68,50 +100,46 @@ func (m *modelBase[K, T]) UpdateBatch(ctx context.Context, params map[string]any
 }
 
 func (m *modelBase[K, T]) List(ctx context.Context, opts ...ListOpt) ([]T, error) {
-	listOpts := &listOpt{}
+	var ts []T
+	db := m.db.WithContext(ctx)
 	for _, opt := range opts {
-		opt(listOpts)
+		db = opt.Apply(db)
 	}
-	var objects []T
-	db := m.db.WithContext(ctx).Where(listOpts.where, listOpts.values...).
-		Offset(listOpts.offset).Limit(listOpts.limit)
-	for _, order := range listOpts.orders {
-		db = db.Order(clause.OrderByColumn{
-			Column: clause.Column{Name: order.sortField},
-			Desc:   order.sort == DESC,
-		})
-	}
-	return objects, errors.WithStack(db.Find(&objects).Error)
+	return ts, errors.WithStack(db.Find(&ts).Error)
 }
 
-func (m *modelBase[K, T]) ListMap(ctx context.Context, where string, values ...any) (map[K]T, error) {
-	var objects []T
-	err := m.db.WithContext(ctx).Where(where, values...).Find(&objects).Error
+func (m *modelBase[K, T]) ListMap(ctx context.Context, opts ...ListOpt) (map[K]T, error) {
+	ts, err := m.List(ctx, opts...)
 	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	if len(objects) == 0 {
-		return nil, nil
+		return nil, err
 	}
 	tMap := make(map[K]T)
-	for _, object := range objects {
-		tMap[object.GetID()] = object
+	for _, t := range ts {
+		tMap[t.GetID()] = t
 	}
 	return tMap, nil
 }
 
-func (m *modelBase[K, T]) ListMapByIDs(ctx context.Context, ids []K) (map[K]T, error) {
-	var objects []T
-	err := m.db.WithContext(ctx).Where("`id` IN (?)", ids).Find(&objects).Error
+func (m *modelBase[K, T]) ListByIDs(ctx context.Context, ids []K) ([]T, error) {
+	var ts []T
+	err := m.db.WithContext(ctx).Where("`id` IN (?)", ids).Find(&ts).Error
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if len(objects) == 0 {
+	return ts, nil
+}
+
+func (m *modelBase[K, T]) ListMapByIDs(ctx context.Context, ids []K) (map[K]T, error) {
+	ts, err := m.ListByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	if len(ts) == 0 {
 		return nil, nil
 	}
 	tMap := make(map[K]T)
-	for _, object := range objects {
-		tMap[object.GetID()] = object
+	for _, t := range ts {
+		tMap[t.GetID()] = t
 	}
 	return tMap, nil
 }
@@ -127,13 +155,19 @@ func (m *modelBase[K, T]) Exist(ctx context.Context, where string, values ...any
 	return true, nil
 }
 
-func (m *modelBase[K, T]) Count(ctx context.Context, where string, values ...any) (int64, error) {
+func (m *modelBase[K, T]) Count(ctx context.Context, opts ...ListOpt) (int64, error) {
 	var (
 		count int64
 		t     T
 	)
-	return count, errors.WithStack(m.db.WithContext(ctx).Model(&t).
-		Where(where, values...).Count(&count).Error)
+	db := m.db.WithContext(ctx).Model(&t)
+	for _, opt := range opts {
+		if !opt.IsCountOpt() {
+			continue
+		}
+		db = opt.Apply(db)
+	}
+	return count, errors.WithStack(db.Count(&count).Error)
 }
 
 func (m *modelBase[K, T]) Delete(ctx context.Context, t T) error {
@@ -141,14 +175,14 @@ func (m *modelBase[K, T]) Delete(ctx context.Context, t T) error {
 }
 
 func (m *modelBase[K, T]) DeleteBatch(ctx context.Context, where string, values ...any) error {
-	var object T
-	return errors.WithStack(m.db.WithContext(ctx).Delete(&object, where, values).Error)
+	var t T
+	return errors.WithStack(m.db.WithContext(ctx).Where(where, values...).Delete(&t).Error)
 }
 
 func NewModelBase[K comparable, T DataObjecter[K]](db *gorm.DB) ModelBase[K, T] {
-	var object T
-	if reflect.TypeOf(object).Kind() != reflect.Pointer {
-		panic(errors.Errorf("ModelBase should inject point type: %T", object))
+	var t T
+	if reflect.TypeOf(t).Kind() != reflect.Pointer {
+		panic(errors.Errorf("ModelBase should inject point type: %T", t))
 	}
 	return &modelBase[K, T]{db: db}
 }
