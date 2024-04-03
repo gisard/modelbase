@@ -2,12 +2,10 @@ package modelbase
 
 import (
 	"context"
-	"reflect"
-	"strings"
-
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"reflect"
 )
 
 type modelBase[K comparable, T DataObjecter[K]] struct {
@@ -26,13 +24,7 @@ func (m *modelBase[K, T]) Insert(ctx context.Context, ts ...T) error {
 }
 
 func (m *modelBase[K, T]) Upsert(ctx context.Context, t T) error {
-	err := m.db.WithContext(ctx).Create(t).Error
-	if err != nil {
-		if strings.Contains(err.Error(), "Duplicate entry") {
-			err = m.db.WithContext(ctx).Updates(t).Error
-		}
-	}
-	return errors.WithStack(err)
+	return errors.WithStack(m.db.WithContext(ctx).Save(t).Error)
 }
 
 func (m *modelBase[K, T]) Get(ctx context.Context, id K) (T, error) {

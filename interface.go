@@ -2,7 +2,6 @@ package modelbase
 
 import (
 	"context"
-
 	"gorm.io/gorm/clause"
 
 	"gorm.io/gorm"
