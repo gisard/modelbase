@@ -1,4 +1,4 @@
-module github.com/guoshaodong/modelbase
+module github.com/gisard/modelbase
 
 go 1.19
 
