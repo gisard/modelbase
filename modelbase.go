@@ -12,8 +12,8 @@ type modelBase[K comparable, T DataObjecter[K]] struct {
 	db *gorm.DB
 }
 
-func (m *modelBase[K, T]) GetDB() *gorm.DB {
-	return m.db
+func (m *modelBase[K, T]) GetDB(ctx context.Context) *gorm.DB {
+	return m.db.WithContext(ctx)
 }
 
 func (m *modelBase[K, T]) Insert(ctx context.Context, ts ...T) error {
