@@ -17,7 +17,7 @@ type ModelBase[K comparable, T DataObjecter[K]] interface {
 	GetDB(ctx context.Context) *gorm.DB
 
 	Insert(ctx context.Context, ts ...T) error
-	Upsert(ctx context.Context, t T) error
+	Upsert(ctx context.Context, ts ...T) error
 	Get(ctx context.Context, id K) (T, error)
 	GetWithLock(ctx context.Context, lock Lock, id K) (T, error)
 	GetBy(ctx context.Context, where string, values ...any) (T, error)

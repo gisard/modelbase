@@ -23,8 +23,11 @@ func (m *modelBase[K, T]) Insert(ctx context.Context, ts ...T) error {
 	return errors.WithStack(m.db.WithContext(ctx).Create(ts).Error)
 }
 
-func (m *modelBase[K, T]) Upsert(ctx context.Context, t T) error {
-	return errors.WithStack(m.db.WithContext(ctx).Save(t).Error)
+func (m *modelBase[K, T]) Upsert(ctx context.Context, ts ...T) error {
+	if len(ts) == 0 {
+		return nil
+	}
+	return errors.WithStack(m.db.WithContext(ctx).Save(ts).Error)
 }
 
 func (m *modelBase[K, T]) Get(ctx context.Context, id K) (T, error) {
