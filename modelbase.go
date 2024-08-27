@@ -16,6 +16,11 @@ func (m *modelBase[K, T]) GetDB(ctx context.Context) *gorm.DB {
 	return m.db.WithContext(ctx)
 }
 
+func (m *modelBase[K, T]) GetObjectDB(ctx context.Context) *gorm.DB {
+	var t T
+	return m.db.WithContext(ctx).Model(&t)
+}
+
 func (m *modelBase[K, T]) Insert(ctx context.Context, ts ...T) error {
 	if len(ts) == 0 {
 		return nil

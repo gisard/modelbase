@@ -15,6 +15,7 @@ type DataObjecter[K comparable] interface {
 
 type ModelBase[K comparable, T DataObjecter[K]] interface {
 	GetDB(ctx context.Context) *gorm.DB
+	GetObjectDB(ctx context.Context) *gorm.DB
 
 	Insert(ctx context.Context, ts ...T) error
 	Upsert(ctx context.Context, ts ...T) error
