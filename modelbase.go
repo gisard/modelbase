@@ -2,10 +2,11 @@ package modelbase
 
 import (
 	"context"
+	"reflect"
+
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"reflect"
 )
 
 type modelBase[K comparable, T DataObjecter[K]] struct {
@@ -14,11 +15,6 @@ type modelBase[K comparable, T DataObjecter[K]] struct {
 
 func (m *modelBase[K, T]) GetDB(ctx context.Context) *gorm.DB {
 	return m.db.WithContext(ctx)
-}
-
-func (m *modelBase[K, T]) GetObjectDB(ctx context.Context) *gorm.DB {
-	var t T
-	return m.db.WithContext(ctx).Model(&t)
 }
 
 func (m *modelBase[K, T]) Insert(ctx context.Context, ts ...T) error {
@@ -36,30 +32,11 @@ func (m *modelBase[K, T]) Upsert(ctx context.Context, ts ...T) error {
 }
 
 func (m *modelBase[K, T]) Get(ctx context.Context, id K) (T, error) {
-	var t T
-	if err := m.db.WithContext(ctx).First(&t, id).Error; err != nil {
-		// If an error occurs, return an empty object
-		var t1 T
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return t1, nil
-		}
-		return t1, errors.WithStack(err)
-	}
-	return t, nil
+	return m.GetBy(ctx, "`id` = ?", id)
 }
 
 func (m *modelBase[K, T]) GetWithLock(ctx context.Context, lock Lock, id K) (T, error) {
-	var t T
-	if err := m.db.WithContext(ctx).Clauses(
-		clause.Locking{Strength: lock.ToString()}).First(&t, id).Error; err != nil {
-		// If an error occurs, return an empty object
-		var t1 T
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return t1, nil
-		}
-		return t1, errors.WithStack(err)
-	}
-	return t, nil
+	return m.GetWithLockBy(ctx, lock, "`id` = ?", id)
 }
 
 func (m *modelBase[K, T]) GetBy(ctx context.Context, where string, values ...any) (T, error) {
@@ -91,7 +68,7 @@ func (m *modelBase[K, T]) GetWithLockBy(ctx context.Context, lock Lock, where st
 }
 
 func (m *modelBase[K, T]) Update(ctx context.Context, t T) error {
-	return errors.WithStack(m.db.WithContext(ctx).Updates(t).Error)
+	return errors.WithStack(m.db.WithContext(ctx).Save(t).Error)
 }
 
 func (m *modelBase[K, T]) UpdateBatch(ctx context.Context, params map[string]any, where string, values ...any) error {
