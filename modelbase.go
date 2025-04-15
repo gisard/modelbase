@@ -21,14 +21,15 @@ func (m *modelBase[K, T]) Insert(ctx context.Context, ts ...T) error {
 	if len(ts) == 0 {
 		return nil
 	}
-	return errors.WithStack(m.db.WithContext(ctx).Create(ts).Error)
+	return errors.WithStack(m.GetDB(ctx).Create(ts).Error)
 }
 
+// Upsert on primary key and unique index update
 func (m *modelBase[K, T]) Upsert(ctx context.Context, ts ...T) error {
 	if len(ts) == 0 {
 		return nil
 	}
-	return errors.WithStack(m.db.WithContext(ctx).Save(ts).Error)
+	return errors.WithStack(m.GetDB(ctx).Save(ts).Error)
 }
 
 func (m *modelBase[K, T]) Get(ctx context.Context, id K) (T, error) {
@@ -41,8 +42,8 @@ func (m *modelBase[K, T]) GetWithLock(ctx context.Context, lock Lock, id K) (T, 
 
 func (m *modelBase[K, T]) GetBy(ctx context.Context, where string, values ...any) (T, error) {
 	var t T
-	if err := m.db.WithContext(ctx).
-		Where(where, values...).First(&t).Error; err != nil {
+	if err := m.GetDB(ctx).
+		Where(where, values...).Take(&t).Error; err != nil {
 		// If an error occurs, return an empty object
 		var t1 T
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -55,8 +56,8 @@ func (m *modelBase[K, T]) GetBy(ctx context.Context, where string, values ...any
 
 func (m *modelBase[K, T]) GetWithLockBy(ctx context.Context, lock Lock, where string, values ...any) (T, error) {
 	var t T
-	if err := m.db.WithContext(ctx).Clauses(
-		clause.Locking{Strength: lock.ToString()}).Where(where, values...).First(&t).Error; err != nil {
+	if err := m.GetDB(ctx).Clauses(
+		clause.Locking{Strength: lock.ToString()}).Where(where, values...).Take(&t).Error; err != nil {
 		// If an error occurs, return an empty object
 		var t1 T
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -68,25 +69,56 @@ func (m *modelBase[K, T]) GetWithLockBy(ctx context.Context, lock Lock, where st
 }
 
 func (m *modelBase[K, T]) Update(ctx context.Context, t T) error {
-	return errors.WithStack(m.db.WithContext(ctx).Save(t).Error)
+	t1, err := m.Get(ctx, t.GetID())
+	if err != nil {
+		return err
+	}
+	if !m.checkObjectIsValid(t1) {
+		return nil
+	}
+	return errors.WithStack(m.GetDB(ctx).Save(t).Error)
+}
+
+func (m *modelBase[K, T]) checkObjectIsValid(t T) bool {
+	v := reflect.ValueOf(t)
+	if !v.IsValid() {
+		return false
+	}
+	// If it is a pointer type
+	if v.Kind() == reflect.Pointer {
+		return !v.IsNil()
+	}
+	// If it is a non-pointer type, check if it is the zero value of the type
+	return !v.IsZero()
 }
 
 func (m *modelBase[K, T]) UpdateBatch(ctx context.Context, params map[string]any, where string, values ...any) error {
+	if len(params) == 0 {
+		return nil
+	}
 	var t T
-	return errors.WithStack(m.db.WithContext(ctx).Model(&t).Where(where, values...).Updates(params).Error)
+	return errors.WithStack(m.GetDB(ctx).Model(&t).Where(where, values...).Updates(params).Error)
 }
 
-func (m *modelBase[K, T]) List(ctx context.Context, opts ...ListOpt) ([]T, error) {
+func (m *modelBase[K, T]) List(ctx context.Context, where string, values ...any) ([]T, error) {
+	return m.ListOpts(ctx, WhereOpt(where, values...))
+}
+
+func (m *modelBase[K, T]) ListMap(ctx context.Context, where string, values ...any) (map[K]T, error) {
+	return m.ListOptsMap(ctx, WhereOpt(where, values...))
+}
+
+func (m *modelBase[K, T]) ListOpts(ctx context.Context, opts ...ListOpt) ([]T, error) {
 	var ts []T
-	db := m.db.WithContext(ctx)
+	db := m.GetDB(ctx)
 	for _, opt := range opts {
 		db = opt.Apply(db)
 	}
 	return ts, errors.WithStack(db.Find(&ts).Error)
 }
 
-func (m *modelBase[K, T]) ListMap(ctx context.Context, opts ...ListOpt) (map[K]T, error) {
-	ts, err := m.List(ctx, opts...)
+func (m *modelBase[K, T]) ListOptsMap(ctx context.Context, opts ...ListOpt) (map[K]T, error) {
+	ts, err := m.ListOpts(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -98,38 +130,23 @@ func (m *modelBase[K, T]) ListMap(ctx context.Context, opts ...ListOpt) (map[K]T
 }
 
 func (m *modelBase[K, T]) ListByIDs(ctx context.Context, ids []K) ([]T, error) {
-	var ts []T
-	err := m.db.WithContext(ctx).Where("`id` IN (?)", ids).Find(&ts).Error
-	if err != nil {
-		return nil, errors.WithStack(err)
+	if len(ids) == 0 {
+		return nil, nil
 	}
-	return ts, nil
+	return m.ListOpts(ctx, WhereOpt("`id` IN (?)", ids))
 }
 
 func (m *modelBase[K, T]) ListMapByIDs(ctx context.Context, ids []K) (map[K]T, error) {
-	ts, err := m.ListByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	if len(ts) == 0 {
-		return nil, nil
-	}
-	tMap := make(map[K]T)
-	for _, t := range ts {
-		tMap[t.GetID()] = t
-	}
-	return tMap, nil
+	return m.ListOptsMap(ctx, WhereOpt("`id` IN (?)", ids))
 }
 
 func (m *modelBase[K, T]) Exist(ctx context.Context, where string, values ...any) (bool, error) {
-	_, err := m.GetBy(ctx, where, values...)
+	t, err := m.GetBy(ctx, where, values...)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
-		}
 		return false, errors.WithStack(err)
 	}
-	return true, nil
+
+	return m.checkObjectIsValid(t), nil
 }
 
 func (m *modelBase[K, T]) Count(ctx context.Context, opts ...ListOpt) (int64, error) {
@@ -137,7 +154,7 @@ func (m *modelBase[K, T]) Count(ctx context.Context, opts ...ListOpt) (int64, er
 		count int64
 		t     T
 	)
-	db := m.db.WithContext(ctx).Model(&t)
+	db := m.GetDB(ctx).Model(&t)
 	for _, opt := range opts {
 		if !opt.IsCountOpt() {
 			continue
@@ -147,13 +164,13 @@ func (m *modelBase[K, T]) Count(ctx context.Context, opts ...ListOpt) (int64, er
 	return count, errors.WithStack(db.Count(&count).Error)
 }
 
-func (m *modelBase[K, T]) Delete(ctx context.Context, t T) error {
-	return errors.WithStack(m.db.WithContext(ctx).Delete(&t).Error)
+func (m *modelBase[K, T]) Delete(ctx context.Context, id K) error {
+	return m.DeleteBatch(ctx, "`id` = ?", id)
 }
 
 func (m *modelBase[K, T]) DeleteBatch(ctx context.Context, where string, values ...any) error {
 	var t T
-	return errors.WithStack(m.db.WithContext(ctx).Where(where, values...).Delete(&t).Error)
+	return errors.WithStack(m.GetDB(ctx).Where(where, values...).Delete(&t).Error)
 }
 
 func NewModelBase[K comparable, T DataObjecter[K]](db *gorm.DB) ModelBase[K, T] {

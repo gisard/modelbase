@@ -12,9 +12,10 @@ import (
 )
 
 type DBObject struct {
-	ID   int64  `gorm:"type:int(11);primaryKey;autoIncrement"`
-	Name string `gorm:"type:varchar(50);uniqueIndex;NOT NULL"`
-	Age  int    `gorm:"type:int(11);NOT NULL;default:18"`
+	ID        int64  `gorm:"type:int(11);primaryKey;autoIncrement"`
+	Name      string `gorm:"type:varchar(50);uniqueIndex;NOT NULL"`
+	Age       int    `gorm:"type:int(11);NOT NULL;default:18"`
+	IsDeleted bool   `gorm:"type:tinyint(1);NOT NULL;default:0"`
 }
 
 func (d *DBObject) TableName() string {
@@ -134,14 +135,14 @@ func (m *modelTestSuite) TestUpdateBatch() {
 	m.assert.Nil(m.sqlMock.ExpectationsWereMet())
 }
 
-func (m *modelTestSuite) TestList() {
+func (m *modelTestSuite) TestListOpts() {
 	var userID int64 = 5
 	queryRows := sqlmock.NewRows([]string{"id", "name", "age"}).
 		AddRow(userID, "John", 18)
 	m.sqlMock.ExpectQuery("SELECT * FROM `user` ").
 		WillReturnRows(queryRows)
 
-	actualList, err := m.model.List(m.ctx)
+	actualList, err := m.model.ListOpts(m.ctx)
 	expectedUserDOs := []*DBObject{
 		{
 			ID:   5,
@@ -162,7 +163,7 @@ func (m *modelTestSuite) TestListWithWhere() {
 		WithArgs(userID).
 		WillReturnRows(queryRows)
 
-	actualList, err := m.model.List(m.ctx, WhereOpt("`id` = ?", userID))
+	actualList, err := m.model.ListOpts(m.ctx, WhereOpt("`id` = ?", userID))
 	expectedUserDOs := []*DBObject{
 		{
 			ID:   5,
@@ -182,7 +183,7 @@ func (m *modelTestSuite) TestListWithPage() {
 	m.sqlMock.ExpectQuery("SELECT * FROM `user` LIMIT 10 OFFSET 10").
 		WillReturnRows(queryRows)
 
-	actualList, err := m.model.List(m.ctx, PageOpt(2, 10))
+	actualList, err := m.model.ListOpts(m.ctx, PageOpt(2, 10))
 	expectedUserDOs := []*DBObject{
 		{
 			ID:   5,
@@ -202,7 +203,7 @@ func (m *modelTestSuite) TestListWithOffset() {
 	m.sqlMock.ExpectQuery("SELECT * FROM `user` LIMIT 10 OFFSET 10").
 		WillReturnRows(queryRows)
 
-	actualList, err := m.model.List(m.ctx, PageOpt(10, 10))
+	actualList, err := m.model.ListOpts(m.ctx, PageOpt(10, 10))
 	expectedUserDOs := []*DBObject{
 		{
 			ID:   5,
@@ -222,7 +223,7 @@ func (m *modelTestSuite) TestListWithSort() {
 	m.sqlMock.ExpectQuery("SELECT * FROM `user` ORDER BY `id` DESC").
 		WillReturnRows(queryRows)
 
-	actualList, err := m.model.List(m.ctx, SortOpt("id", DESC))
+	actualList, err := m.model.ListOpts(m.ctx, SortOpt("id", DESC))
 	expectedUserDOs := []*DBObject{
 		{
 			ID:   5,
@@ -243,7 +244,7 @@ func (m *modelTestSuite) TestListWithWhereSortPage() {
 		WithArgs(userID).
 		WillReturnRows(queryRows)
 
-	actualList, err := m.model.List(m.ctx, WhereOpt("`id` = ?", userID), SortOpt("id", DESC), PageOpt(2, 10))
+	actualList, err := m.model.ListOpts(m.ctx, WhereOpt("`id` = ?", userID), SortOpt("id", DESC), PageOpt(2, 10))
 	expectedUserDOs := []*DBObject{
 		{
 			ID:   5,
@@ -263,7 +264,7 @@ func (m *modelTestSuite) TestListMapBy() {
 	m.sqlMock.ExpectQuery("SELECT * FROM `user` ").
 		WillReturnRows(queryRows)
 
-	actualListMap, err := m.model.ListMap(m.ctx)
+	actualListMap, err := m.model.ListOptsMap(m.ctx)
 	expectedUserMap := map[int64]*DBObject{
 		5: {
 			ID:   5,
@@ -330,7 +331,7 @@ func (m *modelTestSuite) TestDelete() {
 	m.sqlMock.ExpectExec("DELETE FROM `user` WHERE `user`.`id` = ?").
 		WithArgs(userDO.ID).WillReturnResult(sqlmock.NewResult(0, 1))
 
-	err := m.model.Delete(m.ctx, userDO)
+	err := m.model.Delete(m.ctx, 4)
 	m.assert.Nil(err)
 	m.assert.Nil(m.sqlMock.ExpectationsWereMet())
 }
@@ -343,6 +344,71 @@ func (m *modelTestSuite) TestDeleteBatch() {
 	err := m.model.DeleteBatch(m.ctx, "`id` = ?", userID)
 	m.assert.Nil(err)
 	m.assert.Nil(m.sqlMock.ExpectationsWereMet())
+}
+
+func (m *modelTestSuite) TestGetWithLock() {
+	var userID int64 = 5
+	queryRows := sqlmock.NewRows([]string{"id", "name", "age"}).
+		AddRow(userID, "John", 18)
+	m.sqlMock.ExpectQuery("SELECT * FROM `user` WHERE `user`.`id` = ? ORDER BY `user`.`id` LIMIT 1 FOR UPDATE").
+		WithArgs(userID).
+		WillReturnRows(queryRows)
+
+	actualTaskDO, err := m.model.GetWithLock(m.ctx, IX, userID)
+	expectedUserDO := DBObject{
+		ID:   5,
+		Name: "John",
+		Age:  18,
+	}
+	m.assert.Nil(err)
+	m.assert.Nil(m.sqlMock.ExpectationsWereMet())
+	m.assert.Equal(&expectedUserDO, actualTaskDO)
+}
+
+func (m *modelTestSuite) TestGetWithLockBy() {
+	var userID int64 = 5
+	queryRows := sqlmock.NewRows([]string{"id", "name", "age"}).
+		AddRow(userID, "John", 18)
+	m.sqlMock.ExpectQuery("SELECT * FROM `user` WHERE `name` = ? ORDER BY `user`.`id` LIMIT 1 FOR SHARE").
+		WithArgs("John").
+		WillReturnRows(queryRows)
+
+	actualTaskDO, err := m.model.GetWithLockBy(m.ctx, IS, "`name` = ?", "John")
+	expectedUserDO := DBObject{
+		ID:   5,
+		Name: "John",
+		Age:  18,
+	}
+	m.assert.Nil(err)
+	m.assert.Nil(m.sqlMock.ExpectationsWereMet())
+	m.assert.Equal(&expectedUserDO, actualTaskDO)
+}
+
+func (m *modelTestSuite) TestListByIDs() {
+	userIDs := []int64{5, 6}
+	queryRows := sqlmock.NewRows([]string{"id", "name", "age"}).
+		AddRow(5, "John", 18).
+		AddRow(6, "Mary", 20)
+	m.sqlMock.ExpectQuery("SELECT * FROM `user` WHERE `id` IN (?,?)").
+		WithArgs(userIDs[0], userIDs[1]).
+		WillReturnRows(queryRows)
+
+	actualList, err := m.model.ListByIDs(m.ctx, userIDs)
+	expectedUserDOs := []*DBObject{
+		{
+			ID:   5,
+			Name: "John",
+			Age:  18,
+		},
+		{
+			ID:   6,
+			Name: "Mary",
+			Age:  20,
+		},
+	}
+	m.assert.Nil(err)
+	m.assert.Nil(m.sqlMock.ExpectationsWereMet())
+	m.assert.Equal(expectedUserDOs, actualList)
 }
 
 func TestDataSuite(t *testing.T) {

@@ -3,9 +3,8 @@ package modelbase
 import (
 	"context"
 
-	"gorm.io/gorm/clause"
-
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 )
 
@@ -25,13 +24,15 @@ type ModelBase[K comparable, T DataObjecter[K]] interface {
 	GetWithLockBy(ctx context.Context, lock Lock, where string, values ...any) (T, error)
 	Update(ctx context.Context, t T) error
 	UpdateBatch(ctx context.Context, params map[string]any, where string, values ...any) error
-	List(ctx context.Context, opts ...ListOpt) ([]T, error)
-	ListMap(ctx context.Context, opts ...ListOpt) (map[K]T, error)
+	List(ctx context.Context, where string, values ...any) ([]T, error)
+	ListMap(ctx context.Context, where string, values ...any) (map[K]T, error)
+	ListOpts(ctx context.Context, opts ...ListOpt) ([]T, error)
+	ListOptsMap(ctx context.Context, opts ...ListOpt) (map[K]T, error)
 	ListByIDs(ctx context.Context, ids []K) ([]T, error)
 	ListMapByIDs(ctx context.Context, ids []K) (map[K]T, error)
 	Exist(ctx context.Context, where string, values ...any) (bool, error)
 	Count(ctx context.Context, opts ...ListOpt) (int64, error)
-	Delete(ctx context.Context, t T) error
+	Delete(ctx context.Context, id K) error
 	DeleteBatch(ctx context.Context, where string, values ...any) error
 }
 
