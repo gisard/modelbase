@@ -31,7 +31,8 @@ type ModelBase[K comparable, T DataObjecter[K]] interface {
 	ListByIDs(ctx context.Context, ids []K) ([]T, error)
 	ListMapByIDs(ctx context.Context, ids []K) (map[K]T, error)
 	Exist(ctx context.Context, where string, values ...any) (bool, error)
-	Count(ctx context.Context, opts ...ListOpt) (int64, error)
+	Count(ctx context.Context, where string, values ...any) (int64, error)
+	CountOpts(ctx context.Context, opts ...ListOpt) (int64, error)
 	Delete(ctx context.Context, id K) error
 	DeleteBatch(ctx context.Context, where string, values ...any) error
 }

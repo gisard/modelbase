@@ -149,7 +149,11 @@ func (m *modelBase[K, T]) Exist(ctx context.Context, where string, values ...any
 	return m.checkObjectIsValid(t), nil
 }
 
-func (m *modelBase[K, T]) Count(ctx context.Context, opts ...ListOpt) (int64, error) {
+func (m *modelBase[K, T]) Count(ctx context.Context, where string, values ...any) (int64, error) {
+	return m.CountOpts(ctx, WhereOpt(where, values...))
+}
+
+func (m *modelBase[K, T]) CountOpts(ctx context.Context, opts ...ListOpt) (int64, error) {
 	var (
 		count int64
 		t     T

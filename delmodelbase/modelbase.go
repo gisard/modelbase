@@ -137,9 +137,13 @@ func (m *modelBase[K, T]) Exist(ctx context.Context, where string, values ...any
 	return m.ModelBase.Exist(ctx, where, values...)
 }
 
-func (m *modelBase[K, T]) Count(ctx context.Context, opts ...modelbase.ListOpt) (int64, error) {
+func (m *modelBase[K, T]) Count(ctx context.Context, where string, values ...any) (int64, error) {
+	return m.CountOpts(ctx, modelbase.WhereOpt(where, values...))
+}
+
+func (m *modelBase[K, T]) CountOpts(ctx context.Context, opts ...modelbase.ListOpt) (int64, error) {
 	opts = append(opts, modelbase.WhereOpt("`is_deleted` = 0"))
-	return m.ModelBase.Count(ctx, opts...)
+	return m.ModelBase.CountOpts(ctx, opts...)
 }
 
 func (m *modelBase[K, T]) Delete(ctx context.Context, id K) error {

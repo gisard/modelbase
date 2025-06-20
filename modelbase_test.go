@@ -320,7 +320,7 @@ func (m *modelTestSuite) TestCount() {
 		WithArgs(userID).
 		WillReturnRows(queryRows)
 
-	exist, err := m.model.Count(m.ctx, WhereOpt("`id` = ?", userID))
+	exist, err := m.model.CountOpts(m.ctx, WhereOpt("`id` = ?", userID))
 	m.assert.Nil(err)
 	m.assert.Nil(m.sqlMock.ExpectationsWereMet())
 	m.assert.Equal(int64(1), exist)
