@@ -87,7 +87,7 @@ func (m *modelBase[K, T]) List(ctx context.Context, where string, values ...any)
 }
 
 func (m *modelBase[K, T]) ListMap(ctx context.Context, where string, values ...any) (map[K]T, error) {
-	return m.ListOptsMap(ctx, modelbase.WhereOpt(where, values...))
+	return m.ListMapOpts(ctx, modelbase.WhereOpt(where, values...))
 }
 
 func (m *modelBase[K, T]) ListOpts(ctx context.Context, opts ...modelbase.ListOpt) ([]T, error) {
@@ -95,7 +95,7 @@ func (m *modelBase[K, T]) ListOpts(ctx context.Context, opts ...modelbase.ListOp
 	return m.ModelBase.ListOpts(ctx, opts...)
 }
 
-func (m *modelBase[K, T]) ListOptsMap(ctx context.Context, opts ...modelbase.ListOpt) (map[K]T, error) {
+func (m *modelBase[K, T]) ListMapOpts(ctx context.Context, opts ...modelbase.ListOpt) (map[K]T, error) {
 	ts, err := m.ListOpts(ctx, opts...)
 	if err != nil {
 		return nil, err
@@ -127,6 +127,14 @@ func (m *modelBase[K, T]) ListMapByIDs(ctx context.Context, ids []K) (map[K]T, e
 		tMap[t.GetID()] = t
 	}
 	return tMap, nil
+}
+
+func (m *modelBase[K, T]) ListIDs(ctx context.Context, where string, values ...any) ([]K, error) {
+	if where != "" {
+		where += " AND "
+	}
+	where += "`is_deleted` = 0"
+	return m.ModelBase.ListIDs(ctx, where, values...)
 }
 
 func (m *modelBase[K, T]) Exist(ctx context.Context, where string, values ...any) (bool, error) {

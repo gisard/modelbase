@@ -105,7 +105,7 @@ func (m *modelBase[K, T]) List(ctx context.Context, where string, values ...any)
 }
 
 func (m *modelBase[K, T]) ListMap(ctx context.Context, where string, values ...any) (map[K]T, error) {
-	return m.ListOptsMap(ctx, WhereOpt(where, values...))
+	return m.ListMapOpts(ctx, WhereOpt(where, values...))
 }
 
 func (m *modelBase[K, T]) ListOpts(ctx context.Context, opts ...ListOpt) ([]T, error) {
@@ -117,7 +117,7 @@ func (m *modelBase[K, T]) ListOpts(ctx context.Context, opts ...ListOpt) ([]T, e
 	return ts, errors.WithStack(db.Find(&ts).Error)
 }
 
-func (m *modelBase[K, T]) ListOptsMap(ctx context.Context, opts ...ListOpt) (map[K]T, error) {
+func (m *modelBase[K, T]) ListMapOpts(ctx context.Context, opts ...ListOpt) (map[K]T, error) {
 	ts, err := m.ListOpts(ctx, opts...)
 	if err != nil {
 		return nil, err
@@ -137,7 +137,15 @@ func (m *modelBase[K, T]) ListByIDs(ctx context.Context, ids []K) ([]T, error) {
 }
 
 func (m *modelBase[K, T]) ListMapByIDs(ctx context.Context, ids []K) (map[K]T, error) {
-	return m.ListOptsMap(ctx, WhereOpt("`id` IN (?)", ids))
+	return m.ListMapOpts(ctx, WhereOpt("`id` IN (?)", ids))
+}
+
+func (m *modelBase[K, T]) ListIDs(ctx context.Context, where string, values ...any) ([]K, error) {
+	var ids []K
+	var t T
+	db := m.GetDB(ctx)
+	db.Model(&t).Where(where, values...).Pluck("id", &ids)
+	return ids, errors.WithStack(db.Error)
 }
 
 func (m *modelBase[K, T]) Exist(ctx context.Context, where string, values ...any) (bool, error) {

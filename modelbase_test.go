@@ -264,7 +264,7 @@ func (m *modelTestSuite) TestListMapBy() {
 	m.sqlMock.ExpectQuery("SELECT * FROM `user` ").
 		WillReturnRows(queryRows)
 
-	actualListMap, err := m.model.ListOptsMap(m.ctx)
+	actualListMap, err := m.model.ListMapOpts(m.ctx)
 	expectedUserMap := map[int64]*DBObject{
 		5: {
 			ID:   5,
