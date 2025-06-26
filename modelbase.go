@@ -76,7 +76,7 @@ func (m *modelBase[K, T]) Update(ctx context.Context, t T) error {
 	if !m.checkObjectIsValid(t1) {
 		return nil
 	}
-	return errors.WithStack(m.GetDB(ctx).Save(t).Error)
+	return errors.WithStack(m.GetDB(ctx).Updates(t).Error)
 }
 
 func (m *modelBase[K, T]) checkObjectIsValid(t T) bool {
@@ -90,6 +90,17 @@ func (m *modelBase[K, T]) checkObjectIsValid(t T) bool {
 	}
 	// If it is a non-pointer type, check if it is the zero value of the type
 	return !v.IsZero()
+}
+
+func (m *modelBase[K, T]) UpdateAllFields(ctx context.Context, t T) error {
+	t1, err := m.Get(ctx, t.GetID())
+	if err != nil {
+		return err
+	}
+	if !m.checkObjectIsValid(t1) {
+		return nil
+	}
+	return errors.WithStack(m.GetDB(ctx).Model(&t).Save(t).Error)
 }
 
 func (m *modelBase[K, T]) UpdateBatch(ctx context.Context, params map[string]any, where string, values ...any) error {

@@ -71,6 +71,15 @@ func (m *modelBase[K, T]) Update(ctx context.Context, t T) error {
 	return m.GetModelBaseDB().Update(ctx, t)
 }
 
+func (m *modelBase[K, T]) UpdateAllFields(ctx context.Context, t T) error {
+	now := time.Now()
+	if t.GetCreateTime().IsZero() {
+		t.SetCreateTime(now)
+	}
+	t.SetUpdateTime(now)
+	return m.GetModelBaseDB().UpdateAllFields(ctx, t)
+}
+
 func (m *modelBase[K, T]) UpdateBatch(ctx context.Context, params map[string]any, where string, values ...any) error {
 	if len(params) == 0 {
 		return nil

@@ -23,6 +23,7 @@ type ModelBase[K comparable, T DataObjecter[K]] interface {
 	GetBy(ctx context.Context, where string, values ...any) (T, error)
 	GetWithLockBy(ctx context.Context, lock Lock, where string, values ...any) (T, error)
 	Update(ctx context.Context, t T) error
+	UpdateAllFields(ctx context.Context, t T) error
 	UpdateBatch(ctx context.Context, params map[string]any, where string, values ...any) error
 	List(ctx context.Context, where string, values ...any) ([]T, error)
 	ListMap(ctx context.Context, where string, values ...any) (map[K]T, error)
